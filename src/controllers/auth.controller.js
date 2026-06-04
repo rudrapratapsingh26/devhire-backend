@@ -1,9 +1,11 @@
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import prisma from "../database/db.js";
 import { ApiError } from "../utils/api-errors.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { asyncHandler } from "../utils/async-handler.js";
+import { sendPasswordResetEmail } from "../utils/email.js";
 
 const generateTokens = async (userId) => {
   const accessToken = jwt.sign(
@@ -149,4 +151,65 @@ const refresh = asyncHandler(async (req, res) => {
     );
 });
 
-export { register, login, logout, refresh };
+const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    throw new ApiError(400, "Email is required");
+  }
+
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) {
+    throw new ApiError(404, "No account found with this email");
+  }
+
+  const resetToken = crypto.randomBytes(32).toString("hex");
+  const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000);
+
+  await prisma.user.update({
+    where: { email },
+    data: { resetToken, resetTokenExpiry },
+  });
+
+  await sendPasswordResetEmail(email, resetToken);
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Password reset link sent to your email"));
+});
+
+const resetPassword = asyncHandler(async (req, res) => {
+  const { token, newPassword } = req.body;
+
+  if (!token || !newPassword) {
+    throw new ApiError(400, "Token and new password are required");
+  }
+
+  const user = await prisma.user.findFirst({
+    where: {
+      resetToken: token,
+      resetTokenExpiry: { gt: new Date() },
+    },
+  });
+
+  if (!user) {
+    throw new ApiError(400, "Invalid or expired reset token");
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      password: hashedPassword,
+      resetToken: null,
+      resetTokenExpiry: null,
+    },
+  });
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Password reset successful"));
+});
+
+export { register, login, logout, refresh, forgotPassword, resetPassword };
