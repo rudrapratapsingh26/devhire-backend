@@ -2,12 +2,23 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import authRouter from "./src/routes/auth.routes.js";
+import session from "express-session";
+import passport from "./src/utils/passport.js";
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+  })
+);
+app.use(passport.initialize());
+app.use(passport.session());
 
 app.use("/api/auth", authRouter);
 

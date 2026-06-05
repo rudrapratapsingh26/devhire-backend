@@ -212,4 +212,27 @@ const resetPassword = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, {}, "Password reset successful"));
 });
 
-export { register, login, logout, refresh, forgotPassword, resetPassword };
+const googleAuth = asyncHandler(async (req, res) => {
+  const user = req.user;
+
+  const { accessToken, refreshToken } = await generateTokens(user.id);
+
+  return res.redirect(
+    `${process.env.FRONTEND_URL}/auth/google/success?accessToken=${accessToken}&refreshToken=${refreshToken}`
+  );
+});
+
+const googleAuthFailure = asyncHandler(async (req, res) => {
+  throw new ApiError(401, "Google authentication failed");
+});
+
+export {
+  register,
+  login,
+  logout,
+  refresh,
+  forgotPassword,
+  resetPassword,
+  googleAuth,
+  googleAuthFailure,
+};
