@@ -4,6 +4,9 @@ import cors from "cors";
 import authRouter from "./src/routes/auth.routes.js";
 import session from "express-session";
 import passport from "./src/utils/passport.js";
+import companyRoutes from "./src/routes/company.routes.js";
+import adminRoutes from "./src/routes/admin.routes.js";
+
 
 const app = express();
 
@@ -19,8 +22,9 @@ app.use(
 );
 app.use(passport.initialize());
 app.use(passport.session());
-
-app.use("/api/auth", authRouter);
+app.use("/api/v1/auth", authRouter);
+app.use("/api/v1/company", companyRoutes);
+app.use("/api/v1/admin", adminRoutes);
 
 app.get("/", (req, res) => {
   res.json({ message: "DevHire API is running" });
