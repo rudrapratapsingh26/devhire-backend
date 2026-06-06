@@ -63,6 +63,7 @@ model Company {
   companyName String
   description String
   website     String?
+  logoUrl     String?        
   status      ApprovalStatus @default(PENDING)
   createdAt   DateTime       @default(now())
 
