@@ -8,7 +8,7 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const storage = new CloudinaryStorage({
+const logoStorage = new CloudinaryStorage({
   cloudinary,
   params: {
     folder: "devhire/company-logos",
@@ -17,5 +17,16 @@ const storage = new CloudinaryStorage({
   },
 });
 
-export const upload = multer({ storage });
+const resumeStorage = new CloudinaryStorage({
+  cloudinary,
+  params: async (req, file) => ({
+    folder: "devhire/resumes",
+    allowed_formats: ["pdf"],
+    resource_type: "raw",
+  }),
+});
+
+export const uploadLogo = multer({ storage: logoStorage });
+export const uploadResume = multer({ storage: resumeStorage });
+export const upload = uploadLogo;
 export default cloudinary;
