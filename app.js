@@ -8,6 +8,8 @@ import companyRoutes from "./src/routes/company.routes.js";
 import adminRoutes from "./src/routes/admin.routes.js";
 import jobRoutes from "./src/routes/job.routes.js";
 import applicationRoutes from "./src/routes/application.routes.js";
+import candidateRoutes from "./src/routes/candidate.routes.js";
+import bookmarkRoutes from "./src/routes/bookmark.routes.js";
 
 const app = express();
 
@@ -28,6 +30,9 @@ app.use("/api/v1/company", companyRoutes);
 app.use("/api/v1/admin", adminRoutes);
 app.use("/api/v1/jobs", jobRoutes);
 app.use("/api/v1/applications", applicationRoutes);
+app.use("/api/v1/candidate", candidateRoutes);
+app.use("/api/v1/bookmarks", bookmarkRoutes);
+
 
 app.get("/", (req, res) => {
   res.json({ message: "DevHire API is running" });
