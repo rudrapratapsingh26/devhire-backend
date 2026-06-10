@@ -38,6 +38,18 @@ app.get("/", (req, res) => {
   res.json({ message: "DevHire API is running" });
 });
 
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok", message: "DevHire API is healthy" });
+});
+
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    statusCode: 404,
+    message: `Route ${req.method} ${req.url} not found`,
+  });
+});
+
 app.use((err, req, res, next) => {
   const statusCode = err.statusCode || 500;
   const message = err.message || "Something went wrong";
