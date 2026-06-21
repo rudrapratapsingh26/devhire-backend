@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
-import prisma from "../database/db.js";
+import { db } from "../database/db.js";
 import { ApiError } from "../utils/api-errors.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -20,7 +20,10 @@ const generateTokens = async (userId) => {
     { expiresIn: process.env.REFRESH_TOKEN_EXPIRY }
   );
 
-  await prisma.refreshToken.create({
+  // Delete existing refresh tokens for this user before creating new one
+  await db.refreshToken.deleteMany({ where: { userId } });
+
+  await db.refreshToken.create({
     data: {
       userId,
       token: refreshToken,
@@ -32,29 +35,29 @@ const generateTokens = async (userId) => {
 };
 
 const register = asyncHandler(async (req, res) => {
-  const { name, email, password, role } = req.body;
+  const { fullName, email, password, role } = req.body;
 
-  if (!name || !email || !password) {
+  if (!fullName || !email || !password) {
     throw new ApiError(400, "All fields are required");
   }
 
-  const existingUser = await prisma.user.findUnique({ where: { email } });
+  const existingUser = await db.user.findUnique({ where: { email } });
   if (existingUser) {
     throw new ApiError(409, "User already exists with this email");
   }
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  const user = await prisma.user.create({
+  const user = await db.user.create({
     data: {
-      name,
+      fullName,
       email,
       password: hashedPassword,
       role: role || "CANDIDATE",
     },
     select: {
       id: true,
-      name: true,
+      fullName: true,
       email: true,
       role: true,
       createdAt: true,
@@ -73,7 +76,7 @@ const login = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Email and password are required");
   }
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await db.user.findUnique({ where: { email } });
   if (!user) {
     throw new ApiError(404, "User not found");
   }
@@ -91,7 +94,7 @@ const login = asyncHandler(async (req, res) => {
       {
         user: {
           id: user.id,
-          name: user.name,
+          fullName: user.fullName,
           email: user.email,
           role: user.role,
         },
@@ -110,7 +113,7 @@ const logout = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Refresh token is required");
   }
 
-  await prisma.refreshToken.deleteMany({
+  await db.refreshToken.deleteMany({
     where: { token: refreshToken },
   });
 
@@ -126,7 +129,7 @@ const refresh = asyncHandler(async (req, res) => {
 
   const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
 
-  const tokenInDb = await prisma.refreshToken.findUnique({
+  const tokenInDb = await db.refreshToken.findUnique({
     where: { token: refreshToken },
   });
 
@@ -134,7 +137,7 @@ const refresh = asyncHandler(async (req, res) => {
     throw new ApiError(401, "Invalid refresh token");
   }
 
-  await prisma.refreshToken.delete({ where: { token: refreshToken } });
+  await db.refreshToken.delete({ where: { token: refreshToken } });
 
   const { accessToken, refreshToken: newRefreshToken } = await generateTokens(
     decoded.id
@@ -158,7 +161,7 @@ const forgotPassword = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Email is required");
   }
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await db.user.findUnique({ where: { email } });
   if (!user) {
     throw new ApiError(404, "No account found with this email");
   }
@@ -166,7 +169,7 @@ const forgotPassword = asyncHandler(async (req, res) => {
   const resetToken = crypto.randomBytes(32).toString("hex");
   const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000);
 
-  await prisma.user.update({
+  await db.user.update({
     where: { email },
     data: { resetToken, resetTokenExpiry },
   });
@@ -185,7 +188,7 @@ const resetPassword = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Token and new password are required");
   }
 
-  const user = await prisma.user.findFirst({
+  const user = await db.user.findFirst({
     where: {
       resetToken: token,
       resetTokenExpiry: { gt: new Date() },
@@ -198,7 +201,7 @@ const resetPassword = asyncHandler(async (req, res) => {
 
   const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-  await prisma.user.update({
+  await db.user.update({
     where: { id: user.id },
     data: {
       password: hashedPassword,
@@ -214,11 +217,19 @@ const resetPassword = asyncHandler(async (req, res) => {
 
 const googleAuth = asyncHandler(async (req, res) => {
   const user = req.user;
-
   const { accessToken, refreshToken } = await generateTokens(user.id);
 
   return res.redirect(
-    `${process.env.FRONTEND_URL}/auth/google/success?accessToken=${accessToken}&refreshToken=${refreshToken}`
+    `${
+      process.env.FRONTEND_URL
+    }/auth/google/success?accessToken=${accessToken}&user=${encodeURIComponent(
+      JSON.stringify({
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role,
+      })
+    )}`
   );
 });
 
