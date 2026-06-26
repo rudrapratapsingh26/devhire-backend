@@ -19,7 +19,7 @@ passport.use(
         if (!user) {
           user = await db.user.create({
             data: {
-              fullName,
+              fullName: profile.displayName,
               email,
               role: "CANDIDATE",
               googleId: profile.id,

@@ -6,7 +6,7 @@ import {
   scoreResume as scoreResumeAI,
   generateCoverLetter as generateCoverLetterAI,
 } from "../utils/gemini.js";
-import pdfParse from "pdf-parse";
+import { extractText } from "unpdf";
 
 // POST /candidate/profile
 export const createProfile = asyncHandler(async (req, res) => {
@@ -129,8 +129,10 @@ export const scoreResumeHandler = asyncHandler(async (req, res) => {
 
   const jobDescription = req.body.jobDescription || "";
 
-  const pdfData = await pdfParse(req.file.buffer);
-  const resumeText = pdfData.text;
+  const { text } = await extractText(new Uint8Array(req.file.buffer), {
+    mergePages: true,
+  });
+  const resumeText = text;
 
   if (!resumeText || resumeText.trim().length < 50) {
     throw new ApiError(400, "Could not extract text from resume PDF");
