@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import prisma from "../database/db.js";
+import { db } from "../database/db.js";
 import { ApiError } from "../utils/api-errors.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
@@ -14,11 +14,11 @@ const verifyJWT = asyncHandler(async (req, res, next) => {
 
   const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
 
-  const user = await prisma.user.findUnique({
+  const user = await db.user.findUnique({
     where: { id: decoded.id },
     select: {
       id: true,
-      name: true,
+      fullName: true,
       email: true,
       role: true,
     },
