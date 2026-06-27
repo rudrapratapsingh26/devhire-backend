@@ -1,4 +1,4 @@
-import prisma from "../database/db.js";
+import { db } from "../database/db.js";
 import { ApiError } from "../utils/api-errors.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -7,13 +7,13 @@ import { asyncHandler } from "../utils/async-handler.js";
 export const addBookmark = asyncHandler(async (req, res) => {
   const { jobId } = req.params;
 
-  const job = await prisma.job.findUnique({ where: { id: jobId } });
+  const job = await db.job.findUnique({ where: { id: jobId } });
 
   if (!job) {
     throw new ApiError(404, "Job not found");
   }
 
-  const existing = await prisma.bookmarkedJob.findUnique({
+  const existing = await db.bookmarkedJob.findUnique({
     where: {
       userId_jobId: {
         userId: req.user.id,
@@ -26,7 +26,7 @@ export const addBookmark = asyncHandler(async (req, res) => {
     throw new ApiError(409, "Job already bookmarked");
   }
 
-  const bookmark = await prisma.bookmarkedJob.create({
+  const bookmark = await db.bookmarkedJob.create({
     data: {
       userId: req.user.id,
       jobId,
@@ -42,7 +42,7 @@ export const addBookmark = asyncHandler(async (req, res) => {
 export const removeBookmark = asyncHandler(async (req, res) => {
   const { jobId } = req.params;
 
-  const bookmark = await prisma.bookmarkedJob.findUnique({
+  const bookmark = await db.bookmarkedJob.findUnique({
     where: {
       userId_jobId: {
         userId: req.user.id,
@@ -55,7 +55,7 @@ export const removeBookmark = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Bookmark not found");
   }
 
-  await prisma.bookmarkedJob.delete({
+  await db.bookmarkedJob.delete({
     where: {
       userId_jobId: {
         userId: req.user.id,
@@ -71,13 +71,13 @@ export const removeBookmark = asyncHandler(async (req, res) => {
 
 // GET /bookmarks
 export const getBookmarks = asyncHandler(async (req, res) => {
-  const bookmarks = await prisma.bookmarkedJob.findMany({
+  const bookmarks = await db.bookmarkedJob.findMany({
     where: { userId: req.user.id },
     include: {
       job: {
         include: {
           company: {
-            select: { companyName: true, logoUrl: true },
+            select: { name: true, logoUrl: true },
           },
         },
       },

@@ -1,44 +1,35 @@
-import prisma from "../database/db.js";
+import { db } from "../database/db.js";
 import { ApiError } from "../utils/api-errors.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { asyncHandler } from "../utils/async-handler.js";
 
 // POST /jobs — create job
 export const createJob = asyncHandler(async (req, res) => {
-  const { title, description, requirements, location, salary, type, deadline } =
-    req.body;
+  const {
+    title,
+    description,
+    requirements,
+    location,
+    salaryRange,
+    jobType,
+    experienceLevel,
+    deadline,
+  } = req.body;
 
-  if (
-    !title ||
-    !description ||
-    !requirements ||
-    !location ||
-    !type ||
-    !deadline
-  ) {
+  if (!title || !description || !requirements || !location || !deadline) {
     throw new ApiError(400, "All required fields must be provided");
   }
 
-  const validTypes = [
-    "FULL_TIME",
-    "PART_TIME",
-    "CONTRACT",
-    "REMOTE",
-    "INTERNSHIP",
-  ];
-  if (!validTypes.includes(type)) {
-    throw new ApiError(400, "Invalid job type");
-  }
-
-  const job = await prisma.job.create({
+  const job = await db.job.create({
     data: {
       companyId: req.company.id,
       title,
       description,
       requirements,
       location,
-      salary: salary || null,
-      type,
+      salaryRange: salaryRange || null,
+      jobType: jobType || "FULL_TIME",
+      experienceLevel: experienceLevel || "JUNIOR",
       deadline: new Date(deadline),
     },
   });
@@ -53,9 +44,8 @@ export const getJobs = asyncHandler(async (req, res) => {
   const {
     title,
     location,
-    type,
-    minSalary,
-    maxSalary,
+    jobType,
+    experienceLevel,
     status,
     page = 1,
     limit = 10,
@@ -71,33 +61,27 @@ export const getJobs = asyncHandler(async (req, res) => {
     filters.location = { contains: location, mode: "insensitive" };
   }
 
-  if (type) {
-    filters.type = type;
+  if (jobType) {
+    filters.jobType = jobType;
   }
 
-  if (status) {
-    filters.status = status;
-  } else {
-    filters.status = "ACTIVE";
+  if (experienceLevel) {
+    filters.experienceLevel = experienceLevel;
   }
 
-  if (minSalary || maxSalary) {
-    filters.salary = {};
-    if (minSalary) filters.salary.gte = minSalary;
-    if (maxSalary) filters.salary.lte = maxSalary;
-  }
+  filters.status = status || "ACTIVE";
 
   const pageNumber = parseInt(page);
   const limitNumber = parseInt(limit);
   const skip = (pageNumber - 1) * limitNumber;
 
   const [jobs, total] = await Promise.all([
-    prisma.job.findMany({
+    db.job.findMany({
       where: filters,
       include: {
         company: {
           select: {
-            companyName: true,
+            name: true,
             logoUrl: true,
             website: true,
           },
@@ -107,7 +91,7 @@ export const getJobs = asyncHandler(async (req, res) => {
       skip,
       take: limitNumber,
     }),
-    prisma.job.count({ where: filters }),
+    db.job.count({ where: filters }),
   ]);
 
   return res.status(200).json(
@@ -127,16 +111,16 @@ export const getJobs = asyncHandler(async (req, res) => {
   );
 });
 
-// GET /jobs/:id — single job + increment viewCount
+// GET /jobs/:id — single job
 export const getJobById = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  const job = await prisma.job.findUnique({
+  const job = await db.job.findUnique({
     where: { id },
     include: {
       company: {
         select: {
-          companyName: true,
+          name: true,
           logoUrl: true,
           website: true,
           description: true,
@@ -148,11 +132,6 @@ export const getJobById = asyncHandler(async (req, res) => {
   if (!job) {
     throw new ApiError(404, "Job not found");
   }
-
-  await prisma.job.update({
-    where: { id },
-    data: { viewCount: { increment: 1 } },
-  });
 
   return res
     .status(200)
@@ -167,13 +146,14 @@ export const updateJob = asyncHandler(async (req, res) => {
     description,
     requirements,
     location,
-    salary,
-    type,
+    salaryRange,
+    jobType,
+    experienceLevel,
     deadline,
     status,
   } = req.body;
 
-  const job = await prisma.job.findUnique({ where: { id } });
+  const job = await db.job.findUnique({ where: { id } });
 
   if (!job) {
     throw new ApiError(404, "Job not found");
@@ -183,15 +163,16 @@ export const updateJob = asyncHandler(async (req, res) => {
     throw new ApiError(403, "You are not authorized to update this job");
   }
 
-  const updated = await prisma.job.update({
+  const updated = await db.job.update({
     where: { id },
     data: {
       title: title || job.title,
       description: description || job.description,
       requirements: requirements || job.requirements,
       location: location || job.location,
-      salary: salary !== undefined ? salary : job.salary,
-      type: type || job.type,
+      salaryRange: salaryRange !== undefined ? salaryRange : job.salaryRange,
+      jobType: jobType || job.jobType,
+      experienceLevel: experienceLevel || job.experienceLevel,
       deadline: deadline ? new Date(deadline) : job.deadline,
       status: status || job.status,
     },
@@ -206,7 +187,7 @@ export const updateJob = asyncHandler(async (req, res) => {
 export const deleteJob = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  const job = await prisma.job.findUnique({ where: { id } });
+  const job = await db.job.findUnique({ where: { id } });
 
   if (!job) {
     throw new ApiError(404, "Job not found");
@@ -216,7 +197,7 @@ export const deleteJob = asyncHandler(async (req, res) => {
     throw new ApiError(403, "You are not authorized to delete this job");
   }
 
-  await prisma.job.delete({ where: { id } });
+  await db.job.delete({ where: { id } });
 
   return res
     .status(200)
@@ -225,7 +206,7 @@ export const deleteJob = asyncHandler(async (req, res) => {
 
 // GET /company/jobs — company sees their own jobs
 export const getCompanyJobs = asyncHandler(async (req, res) => {
-  const jobs = await prisma.job.findMany({
+  const jobs = await db.job.findMany({
     where: { companyId: req.company.id },
     orderBy: { createdAt: "desc" },
     include: {

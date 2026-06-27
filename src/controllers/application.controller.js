@@ -1,4 +1,4 @@
-import prisma from "../database/db.js";
+import { db } from "../database/db.js";
 import { ApiError } from "../utils/api-errors.js";
 import { ApiResponse } from "../utils/api-response.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -15,11 +15,11 @@ export const applyToJob = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Resume PDF is required");
   }
 
-  const job = await prisma.job.findUnique({
+  const job = await db.job.findUnique({
     where: { id: jobId },
     include: {
       company: {
-        select: { companyName: true },
+        select: { name: true },
       },
     },
   });
@@ -32,7 +32,7 @@ export const applyToJob = asyncHandler(async (req, res) => {
     throw new ApiError(400, "This job is no longer accepting applications");
   }
 
-  const existing = await prisma.application.findUnique({
+  const existing = await db.application.findUnique({
     where: {
       jobId_candidateId: {
         jobId,
@@ -47,7 +47,6 @@ export const applyToJob = asyncHandler(async (req, res) => {
 
   const resumeUrl = req.file.path;
 
-  // fetch PDF text for AI scoring
   let aiScore = null;
   let coverLetter = null;
 
@@ -65,14 +64,14 @@ export const applyToJob = asyncHandler(async (req, res) => {
       coverLetter = await generateCoverLetter(
         resumeText,
         jobDescription,
-        job.company.companyName
+        job.company.name
       );
     }
   } catch (err) {
     console.error("AI scoring failed:", err.message);
   }
 
-  const application = await prisma.application.create({
+  const application = await db.application.create({
     data: {
       jobId,
       candidateId: req.user.id,
@@ -91,18 +90,18 @@ export const applyToJob = asyncHandler(async (req, res) => {
 
 // GET /applications/my — candidate sees their applications
 export const getMyApplications = asyncHandler(async (req, res) => {
-  const applications = await prisma.application.findMany({
+  const applications = await db.application.findMany({
     where: { candidateId: req.user.id },
     include: {
       job: {
         select: {
           title: true,
           location: true,
-          type: true,
-          salary: true,
+          jobType: true,
+          salaryRange: true,
           deadline: true,
           company: {
-            select: { companyName: true, logoUrl: true },
+            select: { name: true, logoUrl: true },
           },
         },
       },
@@ -121,7 +120,7 @@ export const getMyApplications = asyncHandler(async (req, res) => {
 export const getJobApplications = asyncHandler(async (req, res) => {
   const { jobId } = req.params;
 
-  const job = await prisma.job.findUnique({ where: { id: jobId } });
+  const job = await db.job.findUnique({ where: { id: jobId } });
 
   if (!job) {
     throw new ApiError(404, "Job not found");
@@ -134,12 +133,12 @@ export const getJobApplications = asyncHandler(async (req, res) => {
     );
   }
 
-  const applications = await prisma.application.findMany({
+  const applications = await db.application.findMany({
     where: { jobId },
     include: {
       candidate: {
         select: {
-          name: true,
+          fullName: true,
           email: true,
           candidateProfile: {
             select: { skills: true, experience: true, education: true },
@@ -171,7 +170,7 @@ export const updateApplicationStatus = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid status");
   }
 
-  const application = await prisma.application.findUnique({
+  const application = await db.application.findUnique({
     where: { id },
     include: { job: true },
   });
@@ -187,7 +186,7 @@ export const updateApplicationStatus = asyncHandler(async (req, res) => {
     );
   }
 
-  const updated = await prisma.application.update({
+  const updated = await db.application.update({
     where: { id },
     data: { status },
   });
@@ -201,7 +200,7 @@ export const updateApplicationStatus = asyncHandler(async (req, res) => {
 export const withdrawApplication = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  const application = await prisma.application.findUnique({ where: { id } });
+  const application = await db.application.findUnique({ where: { id } });
 
   if (!application) {
     throw new ApiError(404, "Application not found");
@@ -221,7 +220,7 @@ export const withdrawApplication = asyncHandler(async (req, res) => {
     });
   }
 
-  await prisma.application.delete({ where: { id } });
+  await db.application.delete({ where: { id } });
 
   return res
     .status(200)
