@@ -222,7 +222,7 @@ const googleAuth = asyncHandler(async (req, res) => {
   return res.redirect(
     `${
       process.env.FRONTEND_URL
-    }/auth/google/success?accessToken=${accessToken}&user=${encodeURIComponent(
+    }/auth/google/success?accessToken=${accessToken}&refreshToken=${refreshToken}&user=${encodeURIComponent(
       JSON.stringify({
         id: user.id,
         fullName: user.fullName,
